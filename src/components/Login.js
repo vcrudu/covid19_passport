@@ -4,55 +4,31 @@
  */
 
 import React, { Component } from 'react'
-import { View, StyleSheet } from 'react-native'
+import { View } from 'react-native'
 import {
     Container,
-    Header,
-    Title,
     Content,
-    Footer,
-    FooterTab,
     Button,
-    Left,
-    Right,
-    Body,
     Input,
     Item,
     Text
 } from 'native-base'
-import { vw, vh, vmin, vmax } from 'react-native-expo-viewport-units'
 import Auth from '@aws-amplify/auth';
-import Icon from 'react-native-vector-icons/FontAwesome';
+import {styles} from './styles'
+import {ActionMessage, ErrorMessage} from '../utils/component_utils'
+import {isEmailValid, isPasswordValid} from '../utils/validation'
+import { Alert } from "react-native";
 
-const styles = StyleSheet.create({
-    container: {
-        paddingTop: vh(10),
-        paddingLeft: vw(4),
-        paddingRight: vw(4)
-    },
-    h3: {
-        fontSize: 21
-    },
-    additionalOptions: {
-        marginTop: 30,
-        flexDirection: 'row',
-        justifyContent: 'space-evenly'
-    },
-    message: {
-        marginTop: 30,
-        flexDirection: 'row',
-        justifyContent: 'center'
-    }
-})
 
 export default class Login extends React.Component {
     constructor(props) {
         super(props)
         this.state = {
-            username: '',
+            email: '',
             password: '',
             signinSuccess: true,
-            signinErrorMessage: ''
+            signinErrorMessage: '',
+            validation: false
         }
 
         this.setSigninSuccess = this.setSigninSuccess.bind(this)
@@ -60,9 +36,9 @@ export default class Login extends React.Component {
         this.signIn = this.signIn.bind(this)
     }
 
-    onUsernameChange(value) {
+    onEmailChange(value) {
         this.setState({
-            username: value
+            email: value
         })
     }
 
@@ -78,39 +54,54 @@ export default class Login extends React.Component {
         })
     }
 
-    setSigninErrorMessage(value) {
+    setSigninErrorMessage(error) {
+        if(error.code == "UserNotConfirmedException")
+        {
+            Alert.alert(
+                "Warning",
+                "You need to confirm the registration with a confirmation code that you have received. Resend the confirmation code if you do not have one.",
+                [
+                  { text: "OK", onPress: () => this.props.navigation.push("ConfirmCode")}
+                ],
+                { cancelable: false }
+              )
+        }
         this.setState({
-            signinErrorMessage: value
+            signinErrorMessage: error.message
         })
     }
 
     signIn() {
-        Auth.signIn(this.state.username, this.state.password)
-            .then(success => this.setSigninSuccess(true))
+        this.setState({
+            validation: true
+        })
+        if(!isEmailValid(this.state.email) || 
+            !isPasswordValid(this.state.password)) return
+
+        Auth.signIn(this.state.email, this.state.password)
+            .then(success => {
+                this.props.navigation.push('Home')
+            })
             .catch(err => this.setSigninErrorMessage(err));
     }
 
-    render() {
-        let message = this.state.signinErrorMessage ? (
-                <View style={styles.additionalOptions}>
-                    <Text>
-                        <Icon name="warning" color="#db415d" /> User does not exist
-                    </Text>
-                </View>) : null
-        
+    render() { 
         return (
             <Container style={styles.container}>
                 <Content>
                     <Text style={styles.h3}>Sign in to your account</Text>
                     <View style={{ marginTop: 30 }}>
-                        <Text>Username *</Text>
+                        <Text>Email *</Text>
                         <Item regular style={{ marginTop: 10 }}>
                             <Input
                                 placeholder='Enter your username'
-                                value={this.state.username}
-                                onChangeText={this.onUsernameChange.bind(this)} />
+                                value={this.state.email}
+                                onChangeText={this.onEmailChange.bind(this)} />
                         </Item>
                     </View>
+                    <ErrorMessage show={this.state.validation && !isEmailValid(this.state.email)}>
+                            Email is not valid
+                            </ErrorMessage>
                     <View style={{ marginTop: 30 }}>
                         <Text>Password *</Text>
                         <Item regular style={{ marginTop: 10 }}>
@@ -121,14 +112,17 @@ export default class Login extends React.Component {
                                 onChangeText={this.onPasswordChange.bind(this)} />
                         </Item>
                     </View>
+                    <ErrorMessage show={this.state.validation && !isPasswordValid(this.state.password)}>
+                            Password is not valid
+                            </ErrorMessage>
                     <View style={{ marginTop: 10 }}>
-                        <Button onPress={this.signIn} style={{ marginTop: 10, height: 50 }} block><Text> SIGN IN </Text></Button>
+                        <Button disabled={!this.state.email || !this.state.password} onPress={this.signIn} style={{ marginTop: 10, height: 50 }} block><Text> SIGN IN </Text></Button>
                     </View>
                     <View style={styles.additionalOptions}>
-                        <Text>Forgot Password</Text>
-                        <Text>Sign Up</Text>
+                        <Text style={styles.link} onPress={()=>this.props.navigation.push('SignUp')}>Forgot Password</Text>
+                        <Text style={styles.link} onPress={()=>this.props.navigation.push('SignUp')}>Sign Up</Text>
                     </View>
-                    {message}
+                    <ActionMessage show={this.state.signinErrorMessage} text={this.state.signinErrorMessage}/>
                 </Content>
             </Container>
         )
